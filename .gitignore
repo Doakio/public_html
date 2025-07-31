@@ -39525,3 +39525,6 @@ wp-includes/wp-db.php
 wp-links-opml.php
 wp-load.php
 wp-trackback.php
+
+# Auto-added from CSV analysis
+#api_proxy.php
