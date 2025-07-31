@@ -7,25 +7,20 @@ import csv
 import os
 import sys
 
-def process_csv_to_gitignore(csv_filepath, gitignore_filepath='.gitignore'):
+def process_csv_to_gitignore(csv_filepath, gitignore_filepath='.gitignore', replace=True):
     """
-    Read CSV file and append entries marked as 'Ignore' to .gitignore
+    Read CSV file and create/replace .gitignore with entries marked as 'Ignore' or blank
     
     Args:
         csv_filepath: Path to the CSV file
         gitignore_filepath: Path to .gitignore file (default: .gitignore)
+        replace: If True, replace existing .gitignore; if False, append to it
     """
     
     # Check if CSV file exists
     if not os.path.exists(csv_filepath):
         print(f"Error: CSV file '{csv_filepath}' not found!")
         return False
-    
-    # Read existing .gitignore content
-    existing_gitignore = set()
-    if os.path.exists(gitignore_filepath):
-        with open(gitignore_filepath, 'r') as f:
-            existing_gitignore = set(line.strip() for line in f if line.strip() and not line.startswith('#'))
     
     # Read CSV and collect files to ignore
     files_to_ignore = []
@@ -53,31 +48,48 @@ def process_csv_to_gitignore(csv_filepath, gitignore_filepath='.gitignore'):
                 github_action = row['GitHub Action'].strip() if row['GitHub Action'] else ''
                 if github_action == 'Ignore' or github_action == '':
                     filepath = row['Full Path and Filename'].strip()
-                    if filepath and filepath not in existing_gitignore:
+                    if filepath:
                         files_to_ignore.append(filepath)
     
     except Exception as e:
         print(f"Error reading CSV file: {e}")
         return False
     
-    # If no new files to ignore, exit
+    # If no files to ignore, still create empty .gitignore
     if not files_to_ignore:
-        print("No new files to add to .gitignore")
+        print("No files found to ignore in CSV")
+        # Still create an empty .gitignore if replace is True
+        if replace and os.path.exists(gitignore_filepath):
+            os.remove(gitignore_filepath)
+            print(f"Removed existing {gitignore_filepath}")
         return True
     
-    # Sort files for better organization
-    files_to_ignore.sort()
+    # Remove duplicates and sort
+    files_to_ignore = sorted(list(set(files_to_ignore)))
     
-    # Append to .gitignore
+    # Delete existing .gitignore if replace is True
+    if replace and os.path.exists(gitignore_filepath):
+        os.remove(gitignore_filepath)
+        print(f"Removed existing {gitignore_filepath}")
+    
+    # Write to .gitignore
     try:
-        with open(gitignore_filepath, 'a') as f:
-            # Add a header comment if adding new entries
-            f.write("\n# Auto-added from CSV analysis\n")
+        mode = 'w' if replace else 'a'
+        with open(gitignore_filepath, mode) as f:
+            # Add header
+            f.write("# Auto-generated from CSV analysis\n")
+            f.write("# Files and directories that should not be tracked by Git\n\n")
+            
+            # Add common Git ignores first
+            f.write("# Git files\n")
+            f.write(".git/\n\n")
+            
+            f.write("# Files from CSV analysis\n")
             for filepath in files_to_ignore:
                 f.write(f"{filepath}\n")
         
-        print(f"Successfully added {len(files_to_ignore)} entries to {gitignore_filepath}")
-        print("\nFirst 10 entries added:")
+        print(f"Successfully created {gitignore_filepath} with {len(files_to_ignore)} entries")
+        print("\nFirst 10 entries:")
         for filepath in files_to_ignore[:10]:
             print(f"  - {filepath}")
         if len(files_to_ignore) > 10:

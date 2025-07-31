@@ -1,10 +1,12 @@
+# Auto-generated from CSV analysis
+# Files and directories that should not be tracked by Git
 
-# Auto-added from CSV analysis
+# Git files
+.git/
+
+# Files from CSV analysis
 #api_proxy.php
-.htaccess.bak
 404.shtml
-api-health.php
-api-proxy.php
 connection_test.php
 data/votes/conv_20250324001329_a52602.json
 data/votes/conv_20250324002425_9e7958.json
@@ -26,22 +28,18 @@ data/votes/conv_20250519224624_2cf5c3.json
 debug.log
 default.htm
 favicon.ico
-find_writable.php
 index.php
 logo-imh.svg
 php_errors.log
 phpinfo.php
-proxy-api/index.php
 proxy-api/proxy-debug.log
 proxy-debug.log
 robots.txt
-search-proxy.php
 simple_test.php
 test-proxy.php
 test.php
 under_construction.html
 vote-debug.log
-wimpy/wimpy.js
 wp-activate.php
 wp-admin/about.php
 wp-admin/admin-ajax.php
@@ -39525,6 +39523,3 @@ wp-includes/wp-db.php
 wp-links-opml.php
 wp-load.php
 wp-trackback.php
-
-# Auto-added from CSV analysis
-#api_proxy.php
