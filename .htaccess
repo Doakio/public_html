@@ -1,0 +1,104 @@
+AuthType Basic
+AuthName "Restricted Access"
+AuthUserFile /home/doakst7/.htpasswds/public_html/passwd
+Require valid-user
+
+# Allow access to wp-admin/admin-ajax.php
+<Files admin-ajax.php>
+    Satisfy Any
+    Allow from all
+</Files>
+
+# Proper MIME Types for JavaScript Files
+<FilesMatch "\.js$">
+    ForceType application/javascript
+</FilesMatch>
+
+#Begin Really Simple Security
+<IfModule mod_rewrite.c>
+RewriteEngine on
+RewriteCond %{HTTPS} !=on [NC]
+RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+</IfModule>
+#End Really Simple Security
+
+#----------------------------------------------------------------cp:ppd
+# Section managed by cPanel: Password Protected Directories     -cp:ppd
+# - Do not edit this section of the htaccess file!              -cp:ppd
+#----------------------------------------------------------------cp:ppd
+AuthType Basic
+AuthName "Protected 'public_html'"
+AuthUserFile "/home/doakst7/.htpasswds/public_html/passwd"
+Require valid-user
+#----------------------------------------------------------------cp:ppd
+# End section managed by cPanel: Password Protected Directories -cp:ppd
+#----------------------------------------------------------------cp:ppd
+
+# Proxy API Configuration
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Handle all proxy-api requests
+    RewriteCond %{REQUEST_URI} ^/proxy-api/(.*)$ [NC]
+    RewriteRule ^proxy-api/(.*)$ /api-proxy.php?endpoint=$1 [QSA,L]
+    
+    # Specific endpoint handlers (fallback)
+    RewriteRule ^proxy-api$ /api-proxy.php [QSA,L]
+    RewriteRule ^proxy-api/$ /api-proxy.php [QSA,L]
+    
+    # Explicit handler for vote endpoint
+    RewriteRule ^proxy-api/vote$ /api-proxy.php?endpoint=vote [QSA,L]
+    
+    # Prevent direct access to api-proxy.php
+    RewriteCond %{THE_REQUEST} ^[A-Z]{3,9}\ /api-proxy\.php
+    RewriteRule ^api-proxy\.php$ - [F]
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # CORS Headers for proxy-api
+    <FilesMatch "^api-proxy\.php$">
+        Header set Access-Control-Allow-Origin "*"
+        Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+    </FilesMatch>
+</IfModule>
+
+# BEGIN WordPress
+# The directives (lines) between "BEGIN WordPress" and "END WordPress" are
+# dynamically generated, and should only be modified via WordPress filters.
+# Any changes to the directives between these markers will be overwritten.
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+</IfModule>
+# END WordPress
+
+# COMMENTED OUT - Old API proxy
+# RewriteEngine On
+# RewriteRule ^api/(.*)$ http://198.46.85.193:8000/api/$1 [P,L]
+
+# API proxy configuration
+<IfModule mod_rewrite.c>
+    # If the request starts with /api, proxy to our Python server
+    RewriteCond %{REQUEST_URI} ^/api [NC]
+    RewriteRule ^api/(.*)$ http://localhost:8088/api/$1 [P,L]
+</IfModule>
+
+# php -- BEGIN cPanel-generated handler, do not edit
+# Set the “ea-php81” package as the default “PHP” programming language.
+<IfModule mime_module>
+  AddHandler application/x-httpd-ea-php81 .php .php8 .phtml
+</IfModule>
+# php -- END cPanel-generated handler, do not edit

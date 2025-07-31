@@ -1,0 +1,14 @@
+# Ignore files and directories that should not be tracked by Git
+# This file is used to specify intentionally untracked files to ignore
+# For more information, see https://git-scm.com/docs/gitignore
+.well-known/
+.wp-cli/
+cgi-bin/
+data/
+logs/
+proxy-api/
+wimpy/
+wordpress/
+wp-admin/
+wp-content/
+wp-includes/
