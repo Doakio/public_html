@@ -1,41 +1,18 @@
-AuthType Basic
-AuthName "Restricted Access"
-AuthUserFile /home/doakst7/.htpasswds/public_html/passwd
-Require valid-user
+# ===================================================
+# WORKING .HTACCESS FOR LETGODBETRUE API INTEGRATION
+# Compatible with both staging environments
+# ===================================================
 
-# Allow access to wp-admin/admin-ajax.php
-<Files admin-ajax.php>
-    Satisfy Any
-    Allow from all
-</Files>
-
-# Proper MIME Types for JavaScript Files
-<FilesMatch "\.js$">
-    ForceType application/javascript
-</FilesMatch>
-
-#Begin Really Simple Security
+# Force HTTPS (if not already on HTTPS)
 <IfModule mod_rewrite.c>
-RewriteEngine on
-RewriteCond %{HTTPS} !=on [NC]
-RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
-RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+    RewriteEngine on
+    RewriteCond %{HTTPS} !=on [NC]
+    RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
 </IfModule>
-#End Really Simple Security
 
-#----------------------------------------------------------------cp:ppd
-# Section managed by cPanel: Password Protected Directories     -cp:ppd
-# - Do not edit this section of the htaccess file!              -cp:ppd
-#----------------------------------------------------------------cp:ppd
-AuthType Basic
-AuthName "Protected 'public_html'"
-AuthUserFile "/home/doakst7/.htpasswds/public_html/passwd"
-Require valid-user
-#----------------------------------------------------------------cp:ppd
-# End section managed by cPanel: Password Protected Directories -cp:ppd
-#----------------------------------------------------------------cp:ppd
-
-# Proxy API Configuration
+# PROXY API CONFIGURATION
+# This must come BEFORE WordPress rules
 <IfModule mod_rewrite.c>
     RewriteEngine On
     
@@ -55,19 +32,60 @@ Require valid-user
     RewriteRule ^api-proxy\.php$ - [F]
 </IfModule>
 
-# Security Headers
+# PASSWORD PROTECTION SECTION
+# This will be managed by cPanel - DO NOT EDIT between the markers
+#----------------------------------------------------------------cp:ppd
+# Section managed by cPanel: Password Protected Directories     -cp:ppd
+# - Do not edit this section of the htaccess file!              -cp:ppd
+#----------------------------------------------------------------cp:ppd
+# [cPanel will insert password protection rules here if enabled]
+#----------------------------------------------------------------cp:ppd
+# End section managed by cPanel: Password Protected Directories -cp:ppd
+#----------------------------------------------------------------cp:ppd
+
+# EXCLUDE API FILES FROM PASSWORD PROTECTION
+# Allow access to API files without authentication
+<Files "api-proxy.php">
+    Satisfy Any
+    Allow from all
+</Files>
+
+<Files "search-proxy.php">
+    Satisfy Any
+    Allow from all
+</Files>
+
+<Files "admin-ajax.php">
+    Satisfy Any
+    Allow from all
+</Files>
+
+# SECURITY HEADERS
 <IfModule mod_headers.c>
     Header set X-Content-Type-Options "nosniff"
     Header set X-Frame-Options "SAMEORIGIN"
     Header set X-XSS-Protection "1; mode=block"
     Header set Referrer-Policy "strict-origin-when-cross-origin"
     
-    # CORS Headers for proxy-api
-    <FilesMatch "^api-proxy\.php$">
+    # CORS Headers for proxy-api and search-proxy
+    <FilesMatch "(api-proxy|search-proxy)\.php$">
         Header set Access-Control-Allow-Origin "*"
         Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
         Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+        Header set Access-Control-Max-Age "3600"
     </FilesMatch>
+</IfModule>
+
+# PROPER MIME TYPES
+<FilesMatch "\.js$">
+    ForceType application/javascript
+</FilesMatch>
+
+# ALLOW OPTIONS REQUESTS FOR CORS
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ - [R=200,L]
 </IfModule>
 
 # BEGIN WordPress
@@ -85,19 +103,9 @@ RewriteRule . /index.php [L]
 </IfModule>
 # END WordPress
 
-# COMMENTED OUT - Old API proxy
-# RewriteEngine On
-# RewriteRule ^api/(.*)$ http://198.46.85.193:8000/api/$1 [P,L]
-
-# API proxy configuration
-<IfModule mod_rewrite.c>
-    # If the request starts with /api, proxy to our Python server
-    RewriteCond %{REQUEST_URI} ^/api [NC]
-    RewriteRule ^api/(.*)$ http://localhost:8088/api/$1 [P,L]
-</IfModule>
-
+# PHP HANDLER (managed by cPanel)
 # php -- BEGIN cPanel-generated handler, do not edit
-# Set the “ea-php81” package as the default “PHP” programming language.
+# Set the "ea-php81" package as the default "PHP" programming language.
 <IfModule mime_module>
   AddHandler application/x-httpd-ea-php81 .php .php8 .phtml
 </IfModule>
