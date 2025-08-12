@@ -176,7 +176,34 @@ if ($use_direct_mode) {
 }
 
 // Set up API URL - use the direct API URL always since the proxy URL doesn't work
-$api_url = 'http://198.46.85.193:8888/api/search';
+function getServerIP() {
+    // Get the server's primary IP address
+    $hostname = gethostname();
+    $ip = gethostbyname($hostname);
+    
+    // If that doesn't work, try getting from server interface
+    if ($ip == $hostname || $ip == '127.0.0.1') {
+        // Try to get the external IP
+        $output = shell_exec("ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -1");
+        $ip = trim($output);
+    }
+    
+    // Fallback to known IPs based on domain
+    if (empty($ip) || $ip == '127.0.0.1') {
+        $domain = $_SERVER['HTTP_HOST'];
+        if (strpos($domain, 'doakstaging') !== false) {
+            $ip = '198.46.85.193';
+        } elseif (strpos($domain, 'letgodbetrue-staging') !== false) {
+            $ip = '198.46.87.187';
+        }
+    }
+    
+    return $ip;
+}
+
+$server_ip = getServerIP();
+$api_url = "http://{$server_ip}:8888/api/" . $endpoint;
+
 log_debug("Using API URL: " . $api_url);
 
 // Prepare request body - modify to add webpage_search flag

@@ -3,13 +3,162 @@
  * Template Name: Scripture Search Page
  * 
  * This template creates a standalone search page that connects to the LetGodBeTrue API
+ * with dynamic API URL detection
  */
 
 // Get header
 get_header();
 
-// Get API URL from plugin settings if available
-$api_url = get_option('letgod_chat_api_url', 'http://198.46.85.193:8888/api');
+// Dynamic API URL detection function
+function getAutoDetectedApiUrl() {
+    // Priority 1: Check WordPress options (if manually set)
+    $saved_url = get_option('letgod_chat_api_url');
+    if (!empty($saved_url)) {
+        return $saved_url;
+    }
+    
+    // Priority 2: Check environment variable
+    $env_url = getenv('LETGOD_API_URL');
+    if (!empty($env_url)) {
+        return $env_url;
+    }
+    
+    // Priority 3: Check if defined in wp-config.php
+    if (defined('LETGOD_API_URL')) {
+        return LETGOD_API_URL;
+    }
+    
+    // Priority 4: Auto-detect based on current environment
+    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'];
+    
+    // Check for localhost/development
+    if (strpos($host, 'localhost') !== false || 
+        strpos($host, '127.0.0.1') !== false || 
+        strpos($host, '.local') !== false) {
+        // Try common local development ports
+        $ports = ['8888', '8080', '3000', '5000'];
+        foreach ($ports as $port) {
+            if (checkApiEndpoint("http://localhost:{$port}/api/health")) {
+                return "http://localhost:{$port}/api";
+            }
+        }
+    }
+    
+    // Check for API subdomain (e.g., api.example.com)
+    $base_domain = preg_replace('/^www\./', '', $host);
+    $api_subdomain = 'api.' . $base_domain;
+    if (checkApiEndpoint("{$protocol}://{$api_subdomain}/api/health")) {
+        return "{$protocol}://{$api_subdomain}/api";
+    }
+    
+    // Check same domain with /api path
+    if (checkApiEndpoint("{$protocol}://{$host}/api/health")) {
+        return "{$protocol}://{$host}/api";
+    }
+    
+    // Check same domain with port 8888
+    $host_without_port = explode(':', $host)[0];
+    if (checkApiEndpoint("{$protocol}://{$host_without_port}:8888/api/health")) {
+        return "{$protocol}://{$host_without_port}:8888/api";
+    }
+    
+    // Dynamic fallback - detect server IP based on domain
+    $server_ip = getServerIP();
+    return "http://{$server_ip}:8888/api";
+}
+
+// Helper function to get the server's IP address dynamically
+function getServerIP() {
+    // First, try to detect based on domain
+    $domain = $_SERVER['HTTP_HOST'];
+    
+    // Check known domains and their IPs
+    if (strpos($domain, 'doakstaging') !== false) {
+        return '198.46.85.193';
+    } elseif (strpos($domain, 'letgodbetrue-staging') !== false) {
+        return '198.46.87.187';
+    }
+    
+    // If domain not recognized, try to get server's actual IP
+    // Method 1: Try using hostname
+    $hostname = gethostname();
+    $ip = gethostbyname($hostname);
+    
+    // If we got a valid external IP (not localhost), use it
+    if ($ip && $ip != $hostname && $ip != '127.0.0.1' && filter_var($ip, FILTER_VALIDATE_IP)) {
+        return $ip;
+    }
+    
+    // Method 2: Try shell command (if allowed)
+    if (function_exists('shell_exec')) {
+        $output = @shell_exec("ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -1");
+        if ($output) {
+            $ip = trim($output);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
+    }
+    
+    // Method 3: Try $_SERVER variables
+    $server_addr_keys = ['SERVER_ADDR', 'LOCAL_ADDR'];
+    foreach ($server_addr_keys as $key) {
+        if (isset($_SERVER[$key]) && $_SERVER[$key] != '127.0.0.1') {
+            $ip = $_SERVER[$key];
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
+    }
+    
+    // Method 4: Try to get from network interfaces (Linux specific)
+    if (file_exists('/sys/class/net/')) {
+        $interfaces = ['eth0', 'ens3', 'ens5', 'enp0s3', 'enp0s8'];
+        foreach ($interfaces as $interface) {
+            if (function_exists('shell_exec')) {
+                $cmd = "ip addr show {$interface} 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1";
+                $output = @shell_exec($cmd);
+                if ($output) {
+                    $ip = trim($output);
+                    if (filter_var($ip, FILTER_VALIDATE_IP) && $ip != '127.0.0.1') {
+                        return $ip;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Ultimate fallback - use localhost
+    // This assumes the API is running on the same server
+    return 'localhost';
+}
+
+// Helper function to check if API endpoint is reachable
+function checkApiEndpoint($url, $timeout = 2) {
+    // Use WordPress HTTP API for better compatibility
+    $response = wp_remote_get($url, array(
+        'timeout' => $timeout,
+        'sslverify' => false,
+        'headers' => array(
+            'Authorization' => 'Basic ' . base64_encode('anyone:superstrongpassword99')
+        )
+    ));
+    
+    if (is_wp_error($response)) {
+        return false;
+    }
+    
+    $status_code = wp_remote_retrieve_response_code($response);
+    return $status_code >= 200 && $status_code < 400;
+}
+
+// Get the dynamic API URL
+$api_url = getAutoDetectedApiUrl();
+
+// Get proxy URLs dynamically
+$search_proxy_url = home_url('/search-proxy.php');
+$api_proxy_url = home_url('/api-proxy.php');
 
 // Avada specific wrappers
 ?>
@@ -60,6 +209,22 @@ $api_url = get_option('letgod_chat_api_url', 'http://198.46.85.193:8888/api');
                 <div class="results-container" id="resultsContainer">
                     <div class="result-count" id="resultCount"></div>
                     <div id="resultsList"></div>
+                </div>
+                
+                <!-- Debug panel for showing detected URLs (hidden by default) -->
+                <div class="debug-panel" id="debugPanel" style="display: none;">
+                    <h3>API Configuration (Debug)</h3>
+                    <pre>
+Detected API URL: <?php echo esc_html($api_url); ?>
+
+Search Proxy URL: <?php echo esc_html($search_proxy_url); ?>
+
+API Proxy URL: <?php echo esc_html($api_proxy_url); ?>
+
+Current Domain: <?php echo esc_html($_SERVER['HTTP_HOST']); ?>
+
+Protocol: <?php echo is_ssl() ? 'HTTPS' : 'HTTP'; ?>
+                    </pre>
                 </div>
             </div>
             <!-- Search Interface End -->
@@ -280,7 +445,6 @@ $api_url = get_option('letgod_chat_api_url', 'http://198.46.85.193:8888/api');
     border-radius: 5px;
     font-family: monospace;
     font-size: 13px;
-    display: none;
 }
 
 .scripture-search-page .debug-panel h3 {
@@ -348,9 +512,26 @@ window.addEventListener('error', function(e) {
 </script>
 
 <script>
+// Dynamic configuration passed from PHP
+const searchConfig = {
+    apiUrl: '<?php echo esc_js($api_url); ?>',
+    searchProxyUrl: '<?php echo esc_js($search_proxy_url); ?>',
+    apiProxyUrl: '<?php echo esc_js($api_proxy_url); ?>',
+    currentDomain: '<?php echo esc_js($_SERVER['HTTP_HOST']); ?>',
+    isSSL: <?php echo is_ssl() ? 'true' : 'false'; ?>
+};
+
+// Debug mode toggle
 const DEBUG_MODE = true;
-const API_BASE_URL = '/search-proxy.php';
-console.log("Script loaded. API URL:", API_BASE_URL);
+
+// Use dynamic proxy URL
+const API_BASE_URL = searchConfig.searchProxyUrl || '/search-proxy.php';
+
+console.log("Script loaded with dynamic configuration:");
+console.log("- API URL:", searchConfig.apiUrl);
+console.log("- Search Proxy URL:", API_BASE_URL);
+console.log("- Current Domain:", searchConfig.currentDomain);
+console.log("- SSL Enabled:", searchConfig.isSSL);
 
 const searchForm = document.getElementById('searchForm');
 const searchInput = document.getElementById('searchInput');
@@ -519,16 +700,21 @@ async function performSearch(query, categories = []) {
     const requestBody = {
         query,
         webpage_search: true,
-        categories: categories
-        // Let backend determine if this is from main search
+        categories: categories,
+        api_config: {
+            api_url: searchConfig.apiUrl,
+            from_domain: searchConfig.currentDomain
+        }
     };
 
     // Set metadata for tracking
     searchTracker.setMetadata('Query', query);
     searchTracker.setMetadata('Categories', categories.join(', ') || 'None');
+    searchTracker.setMetadata('API URL', searchConfig.apiUrl);
 
     logDebug(requestBody, "Sending request...");
     console.log(`🔍 Starting search for: "${query}" with categories: ${JSON.stringify(categories)}`);
+    console.log(`📡 Using API: ${searchConfig.apiUrl}`);
 
     try {
         const controller = new AbortController();
@@ -606,6 +792,8 @@ async function performSearch(query, categories = []) {
         } else {
             errorMessage.textContent += `. No categories selected.`;
         }
+        
+        errorMessage.textContent += `\n\nAPI URL: ${searchConfig.apiUrl}`;
         
         if (err.response) {
             try {
@@ -875,8 +1063,17 @@ function sendChatBotMessage(message) {
     // chatBotMonitor.trackMessage(response, false);
 }
 
+// Toggle debug panel with keyboard shortcut (Ctrl+Shift+D)
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        const debugPanel = document.getElementById('debugPanel');
+        debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log(`🚀 LetGodBeTrue Search Page initialized at ${new Date().toISOString()}`);
+    console.log(`🌐 Dynamic API detection complete: ${searchConfig.apiUrl}`);
     
     // Performance tracking for initial page load
     const pageLoadTracker = new PerformanceTracker('Page Load');
